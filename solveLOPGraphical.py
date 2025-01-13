@@ -17,7 +17,7 @@ class Constraint:
 
 
 @dataclass
-class LinearOptimizationProblem:
+class LOP:
     objective: list[float]
     constraints: list[Constraint]
 
@@ -68,7 +68,7 @@ def evaluate_constraint(constraint: Constraint, x_values: np.ndarray) -> np.ndar
     return (constraint.bound - constraint.coefficients[0] * x_values) / zero_safe(constraint.coefficients[1])
 
 
-def solve_problem(problem: LinearOptimizationProblem) -> Solution:
+def solve_problem(problem: LOP) -> Solution:
     negative_objective = [-coefficient for coefficient in problem.objective]
     A = np.array([np.array(constraint.coefficients) for constraint in problem.constraints])
     upper_bound: np.array = np.array([constraint.bound for constraint in problem.constraints])
@@ -84,8 +84,9 @@ def solve_problem(problem: LinearOptimizationProblem) -> Solution:
     )
 
 
+
 def plot_constraint(constraint: Constraint):
-    x_values = np.linspace(0, 100, 400)
+    x_values = np.linspace(0, 100, 10_000)
     y_values = evaluate_constraint(constraint, x_values)
     values = [(x, y) for x, y in zip(x_values, y_values) if x >= 0 and y >= 0]
     plt.plot(
@@ -94,28 +95,31 @@ def plot_constraint(constraint: Constraint):
     )
 
 
-def plot_solution(optimal_point: tuple[float, float]):
+def plot_solution(solution: Solution):
+    optimal_point = solution.optimal_point
     plt.plot(optimal_point[0], optimal_point[1], 'ro', label="Optimal Solution")
-
-
-def plot_problem(problem: LinearOptimizationProblem, output_path: Path):
-    x_values = np.linspace(0, 100, 400)
-    plt.figure(figsize=(10, 8))
-
-    for con in problem.constraints:
-        plot_constraint(con)
-
-    y_max = np.minimum.reduce([evaluate_constraint(con, x_values) for con in problem.constraints])
-    y_max = np.maximum(y_max, 0)
-    plt.fill_between(x_values, 0, y_max, alpha=0.2)
-
-    solution = solve_problem(problem)
-    plot_solution(solution.optimal_point)
     plt.annotate(
             f"({solution.optimal_point[0]:.2f}, {solution.optimal_point[1]:.2f})",
             solution.optimal_point, textcoords="offset points", xytext=(10, 10)
     )
 
+def fill_feasible_region(constraints: list[Constraint]):
+    x_values = np.linspace(0, 100, 10_000)
+    y_values = np.minimum.reduce([evaluate_constraint(con, x_values) for con in constraints])
+    y_values = np.maximum(y_values, 0)
+    plt.fill_between(x_values, 0, y_values, alpha=0.2)
+
+
+def plot_problem(problem: LOP, output_path: Path):
+    plt.figure(figsize=(10, 8))
+
+    for con in problem.constraints:
+        plot_constraint(con)
+
+    fill_feasible_region(problem.constraints)
+
+    solution = solve_problem(problem)
+    plot_solution(solution)
     plt.xlim(0, 20)
     plt.ylim(0, 20)
     plt.xlabel('x1')
@@ -125,14 +129,6 @@ def plot_problem(problem: LinearOptimizationProblem, output_path: Path):
     plt.grid(True)
     plt.savefig(output_path)
 
-
-if __name__ == '__main__':
-    const1 = Constraint(coefficients=[2, 1], bound=15)
-    const2 = Constraint(coefficients=[2, 1], bound=10)
-    intersection = get_intersection_point(const1, const2)
-    plot_constraint(const1)
-    plot_constraint(const2)
-    plot_solution(tuple(intersection))
-    plt.grid(True)
-    plt.show()
-    print(intersection)
+def save_problem_with_solution(problem: LOP, solution: Solution, output_path: Path):
+    with open(output_path, 'w', encoding="utf-8") as file:
+        file.write(str(problem) + "\n\n" + str(solution))
